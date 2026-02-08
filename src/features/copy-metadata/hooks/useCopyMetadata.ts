@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/shared/lib'
-import type { MetadataItem } from '@/shared/types'
+import { MetadataItem } from '@/shared/lib/types'
 
 export function useCopyMetadata() {
   const copySectionAsJson = useCallback(
