@@ -19,6 +19,7 @@ import {
 } from "@/shared/ui"
 import { Navbar } from "@/widgets/navbar"
 import { benefits, features, metadataChecks, steps } from "@/entities/homepage"
+import { Footer } from "@/widgets/footer"
 
 
 const fadeUp = {
@@ -420,6 +421,7 @@ export function HomePage() {
           </motion.div>
         </motion.div>
       </section>
+      <Footer/>
     </div>
   )
 }
