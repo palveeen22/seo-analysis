@@ -5,6 +5,11 @@ Thanks for your interest in contributing! This guide will help you get started.
 ## Getting Started
 
 1. Fork the repository and clone it locally
+   ```bash
+   git clone https://github.com/palveeen22/seo-ai.git
+   
+   cd seo-ai
+   ```
 2. Install dependencies:
    ```bash
    pnpm install

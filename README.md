@@ -74,6 +74,10 @@ graph TD
 ## Getting Started
 
 ```bash
+# Clone Repository
+git clone https://github.com/palveeen22/seo-ai.git
+cd seo-ai
+
 # Install dependencies
 pnpm install
 
