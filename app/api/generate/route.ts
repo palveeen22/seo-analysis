@@ -2,11 +2,18 @@ import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { fetchMetadata } from '@/shared/lib/metadata'
 import type { MetadataResult } from '@/shared/lib/metadata'
+import {
+  ValidationError,
+  ConfigurationError,
+  ExternalServiceError,
+  toErrorResponse,
+  logger,
+} from '@/shared/lib'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 function getModel() {
-  return genAI.getGenerativeModel({ 
+  return genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0.7,
@@ -120,7 +127,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
     "slackImage": null,
     "slackType": "same as ogType"
   },
-  
+
   "aiAnalysis": {
     "missingFields": [
       {
@@ -187,41 +194,33 @@ Provide actionable recommendations for each field, especially for images and tec
 export async function POST(request: Request) {
   try {
     if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: 'Gemini API key is not configured' },
-        { status: 500 }
-      )
+      throw new ConfigurationError('Gemini API key is not configured')
     }
 
     const { url, prompt } = await request.json()
 
     if (!url && !prompt) {
-      return NextResponse.json(
-        { error: 'URL or prompt is required' },
-        { status: 400 }
-      )
+      throw new ValidationError('URL or prompt is required')
     }
 
     let existingMetadata: MetadataResult | undefined
     if (url) {
       try {
+        logger.info('Fetching existing metadata for generation', { url })
         existingMetadata = await fetchMetadata(url)
       } catch (error) {
-        console.error('Error fetching existing metadata:', error)
-        // Continue with generation even if fetch fails
+        logger.warn('Failed to fetch existing metadata, continuing with generation', { url })
       }
     }
 
+    logger.info('Generating metadata with Gemini', { url, hasPrompt: !!prompt })
     const geminiPrompt = buildPrompt(existingMetadata, prompt)
     const model = getModel()
     const result = await model.generateContent(geminiPrompt)
     const textContent = result.response.text()
 
     if (!textContent) {
-      return NextResponse.json(
-        { error: 'No response from AI' },
-        { status: 502 }
-      )
+      throw new ExternalServiceError('gemini', 'No response from AI')
     }
 
     // Clean and parse JSON response
@@ -229,17 +228,26 @@ export async function POST(request: Request) {
       .replace(/```json?\n?/g, '')
       .replace(/```\n?/g, '')
       .trim()
-    
+
     // Handle cases where AI wraps response in extra text
     const jsonMatch = jsonString.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       jsonString = jsonMatch[0]
     }
 
-    const aiResponse: { 
+    let aiResponse: {
       metadata: MetadataResult
       aiAnalysis: GeneratedMetadata['aiAnalysis']
-    } = JSON.parse(jsonString)
+    }
+
+    try {
+      aiResponse = JSON.parse(jsonString)
+    } catch {
+      throw new ExternalServiceError(
+        'gemini',
+        'Failed to parse AI response. The AI returned invalid JSON.'
+      )
+    }
 
     const generatedMetadata: GeneratedMetadata = {
       ...aiResponse.metadata,
@@ -280,7 +288,7 @@ export async function POST(request: Request) {
       if (!existingMetadata.ogImage && generatedMetadata.aiAnalysis) {
         const hasImageRecommendation = generatedMetadata.aiAnalysis.missingFields
           .some(f => f.field === 'ogImage')
-        
+
         if (!hasImageRecommendation) {
           generatedMetadata.aiAnalysis.missingFields.push({
             field: 'ogImage',
@@ -294,7 +302,7 @@ export async function POST(request: Request) {
       if (!existingMetadata.twitterImage && generatedMetadata.aiAnalysis) {
         const hasTwitterImageRec = generatedMetadata.aiAnalysis.missingFields
           .some(f => f.field === 'twitterImage')
-        
+
         if (!hasTwitterImageRec) {
           generatedMetadata.aiAnalysis.missingFields.push({
             field: 'twitterImage',
@@ -319,21 +327,11 @@ export async function POST(request: Request) {
     generatedMetadata.sitemapExists = generatedMetadata.sitemapExists ?? false
     generatedMetadata.robotsTxtExists = generatedMetadata.robotsTxtExists ?? false
 
+    logger.info('Metadata generated successfully', { url, hasPrompt: !!prompt })
     return NextResponse.json(generatedMetadata)
   } catch (error) {
-    console.error('Error generating metadata:', error)
-    
-    // Provide more specific error messages
-    if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        { error: 'Failed to parse AI response. The AI may have returned invalid JSON.' },
-        { status: 500 }
-      )
-    }
-    
-    return NextResponse.json(
-      { error: 'Failed to generate metadata. Please try again.' },
-      { status: 500 }
-    )
+    logger.error('Metadata generation failed', error, { route: '/api/generate' })
+    const { body, status } = toErrorResponse(error)
+    return NextResponse.json(body, { status })
   }
 }

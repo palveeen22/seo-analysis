@@ -1,21 +1,23 @@
 import { NextResponse } from 'next/server'
 import { fetchMetadata } from '@/shared/lib/metadata'
+import { ValidationError, toErrorResponse, logger } from '@/shared/lib'
 
 export async function POST(request: Request) {
   try {
     const { url } = await request.json()
 
-    if (!url) {
-      return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+    if (!url || typeof url !== 'string') {
+      throw new ValidationError('URL is required')
     }
 
+    logger.info('Fetching metadata', { url })
     const metadata = await fetchMetadata(url)
+    logger.info('Metadata fetched successfully', { url })
+
     return NextResponse.json(metadata)
   } catch (error) {
-    console.error('Error fetching metadata:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch metadata' },
-      { status: 500 }
-    )
+    logger.error('Metadata fetch failed', error, { route: '/api/metadata' })
+    const { body, status } = toErrorResponse(error)
+    return NextResponse.json(body, { status })
   }
 }

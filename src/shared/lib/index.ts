@@ -3,3 +3,12 @@ export { copyToClipboard } from "./copyToClipboard";
 export { cn } from "./cn";
 export { fetchMetadata } from "./metadata";
 export type { MetadataResult } from "./metadata";
+export { logger } from "./logger";
+export {
+  AppError,
+  ValidationError,
+  ExternalServiceError,
+  ConfigurationError,
+  toErrorResponse,
+} from "./errors";
+export type { ApiErrorResponse } from "./errors";

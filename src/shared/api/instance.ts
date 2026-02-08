@@ -13,8 +13,9 @@ export async function apiClient<T>(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error || `Request failed: ${response.status}`)
+    const data = await response.json().catch(() => ({}))
+    const message = data?.error?.message || data?.error || `Request failed: ${response.status}`
+    throw new Error(message)
   }
 
   return response.json()
