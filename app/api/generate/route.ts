@@ -6,55 +6,179 @@ import type { MetadataResult } from '@/shared/lib/metadata'
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 function getModel() {
-  return genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  return genAI.getGenerativeModel({ 
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      temperature: 0.7,
+      topP: 0.95,
+      topK: 40,
+    }
+  })
+}
+
+interface MissingField {
+  field: string
+  importance: 'critical' | 'high' | 'medium' | 'low'
+  reason: string
+  recommendation: string
+}
+
+interface GeneratedMetadata extends MetadataResult {
+  aiAnalysis?: {
+    missingFields: MissingField[]
+    improvements: string[]
+    seoScore: number
+    summary: string
+  }
 }
 
 function buildPrompt(existingMetadata?: MetadataResult, prompt?: string): string {
-  const base = `You are an SEO expert. Generate optimized metadata for a webpage.
-Return ONLY a valid JSON object (no markdown, no code blocks) matching this exact structure:
-{
-  "title": "SEO optimized title (50-60 chars)",
-  "description": "Compelling meta description (150-160 chars)",
-  "keywords": "comma, separated, keywords",
-  "ogTitle": "Open Graph title",
-  "ogDescription": "Open Graph description",
-  "ogType": "website",
-  "ogSiteName": "Site name",
-  "ogLocale": "en_US",
-  "twitterCard": "summary_large_image",
-  "twitterTitle": "Twitter card title",
-  "twitterDescription": "Twitter card description",
-  "robots": "index, follow",
-  "viewport": "width=device-width, initial-scale=1",
-  "charset": "UTF-8",
-  "language": "en",
-  "sitemapExists": false,
-  "robotsTxtExists": false
-}
+  const base = `You are an expert SEO consultant and metadata specialist. Analyze the webpage content and existing metadata, then provide:
 
-Include ALL fields that make sense. For fields you cannot determine, omit them.
-Make titles engaging and click-worthy while being accurate.
-Make descriptions compelling with clear value propositions.
-Optimize keywords for search intent.`
+1. **Complete optimized metadata** following best practices
+2. **Detailed analysis** of what's missing or needs improvement
+3. **Actionable recommendations** with clear reasoning
+
+CRITICAL RULES:
+- For images (ogImage, twitterImage, favicon, etc): NEVER generate fake URLs or placeholder values
+- Instead, provide recommendations like: "Should be a 1200x630px image showcasing [description]"
+- Only include actual image URLs if they exist in the current metadata
+- Be specific and actionable in all recommendations
+- Consider the actual page content and context
+
+Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
+{
+  "metadata": {
+    // Basic SEO
+    "title": "Compelling, keyword-rich title (50-60 chars)",
+    "description": "Persuasive meta description with clear value prop (150-160 chars)",
+    "keywords": "primary keyword, secondary keyword, long-tail keyword",
+    "author": "Author name if applicable",
+    "generator": "Generator if applicable",
+    "themeColor": "#hex-color for brand",
+
+    // Open Graph - Critical for social sharing
+    "ogTitle": "Engaging OG title (may differ from SEO title)",
+    "ogDescription": "Compelling OG description (may differ from meta)",
+    "ogImage": null,  // NEVER generate fake URLs
+    "ogImageWidth": null,
+    "ogImageHeight": null,
+    "ogImageAlt": "Descriptive alt text for OG image",
+    "ogUrl": "canonical URL",
+    "ogType": "website or article",
+    "ogSiteName": "Brand/site name",
+    "ogLocale": "en_US or appropriate locale",
+    "ogVideo": null,  // Only if video exists
+    "ogAudio": null,  // Only if audio exists
+
+    // Facebook
+    "fbAppId": null,  // Only if FB integration exists
+    "fbPages": null,
+    "fbDomainVerification": null,
+
+    // Twitter Cards - Critical for Twitter sharing
+    "twitterCard": "summary_large_image",
+    "twitterTitle": "Twitter-optimized title",
+    "twitterDescription": "Twitter-optimized description",
+    "twitterImage": null,  // NEVER generate fake URLs
+    "twitterImageAlt": "Descriptive alt text for Twitter image",
+    "twitterSite": "@username if applicable",
+    "twitterCreator": "@username if applicable",
+    "twitterDomainVerification": null,
+
+    // Technical SEO
+    "canonicalUrl": "canonical URL",
+    "robots": "index, follow",
+    "viewport": "width=device-width, initial-scale=1",
+    "charset": "UTF-8",
+    "language": "en or appropriate lang code",
+    "favicon": null,  // Only if exists
+    "appleTouchIcon": null,  // Only if exists
+    "manifest": null,  // Only if exists
+
+    // Article Specific (if type is article)
+    "articlePublishedTime": null,
+    "articleModifiedTime": null,
+    "articleAuthor": null,
+    "articleSection": null,
+    "articleTags": null,
+
+    // Additional SEO
+    "alternateUrls": null,
+    "prevPage": null,
+    "nextPage": null,
+    "rating": null,
+    "referrer": "origin-when-cross-origin",
+
+    // Discord & Slack (uses OG by default)
+    "discordTitle": "same as ogTitle",
+    "discordDescription": "same as ogDescription",
+    "discordImage": null,
+    "discordType": "same as ogType",
+    "slackTitle": "same as ogTitle",
+    "slackDescription": "same as ogDescription",
+    "slackImage": null,
+    "slackType": "same as ogType"
+  },
+  
+  "aiAnalysis": {
+    "missingFields": [
+      {
+        "field": "ogImage",
+        "importance": "critical",
+        "reason": "Social media platforms will not display rich previews without an image",
+        "recommendation": "Create a 1200x630px image with your logo, key message, and brand colors. Use tools like Canva or Figma. Image should be under 8MB and in JPG/PNG format."
+      }
+    ],
+    "improvements": [
+      "Current title is too generic - make it more specific and include primary keyword",
+      "Description lacks a clear call-to-action",
+      "Missing structured data (JSON-LD) for better search appearance"
+    ],
+    "seoScore": 75,  // Score out of 100
+    "summary": "Overall assessment and priority actions"
+  }
+}`
 
   if (existingMetadata) {
     return `${base}
 
-Here is the current metadata for this page. Analyze it and generate IMPROVED, SEO-optimized versions of all fields:
-
-Current metadata:
+**CURRENT PAGE METADATA:**
 ${JSON.stringify(existingMetadata, null, 2)}
 
-Generate better metadata that will improve search rankings and social media engagement. Keep what's already good, improve what's weak, and add missing fields.`
+**YOUR TASK:**
+1. Analyze what's missing, weak, or incorrect
+2. Generate IMPROVED versions of all fields
+3. Provide specific, actionable recommendations
+4. For images: describe what SHOULD be there, don't generate fake URLs
+5. Explain WHY each change improves SEO/social sharing
+6. Give a realistic SEO score and improvement roadmap
+
+Focus on:
+- Making titles more compelling and click-worthy
+- Writing descriptions that drive action
+- Ensuring all critical fields for social sharing are optimized
+- Identifying technical SEO issues
+- Providing clear next steps for the user`
   }
 
   if (prompt) {
     return `${base}
 
-Generate optimized metadata for a webpage with this description:
+**USER REQUEST:**
 ${prompt}
 
-Create complete, professional metadata that would rank well in search engines and look great when shared on social media.`
+**YOUR TASK:**
+Generate complete, professional metadata for a webpage about: "${prompt}"
+
+Consider:
+- Target audience and search intent
+- Competitive keywords
+- Social media best practices
+- Technical SEO requirements
+- Brand voice and tone
+
+Provide actionable recommendations for each field, especially for images and technical setup.`
   }
 
   return base
@@ -82,8 +206,9 @@ export async function POST(request: Request) {
     if (url) {
       try {
         existingMetadata = await fetchMetadata(url)
-      } catch {
-        // If fetch fails, we'll generate from scratch
+      } catch (error) {
+        console.error('Error fetching existing metadata:', error)
+        // Continue with generation even if fetch fails
       }
     }
 
@@ -99,41 +224,115 @@ export async function POST(request: Request) {
       )
     }
 
-    // Parse JSON from Gemini response (strip markdown code blocks if present)
-    const jsonString = textContent.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim()
-    const generatedMetadata: MetadataResult = JSON.parse(jsonString)
+    // Clean and parse JSON response
+    let jsonString = textContent
+      .replace(/```json?\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+    
+    // Handle cases where AI wraps response in extra text
+    const jsonMatch = jsonString.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      jsonString = jsonMatch[0]
+    }
 
-    // Ensure required boolean fields
-    generatedMetadata.sitemapExists = generatedMetadata.sitemapExists ?? existingMetadata?.sitemapExists ?? false
-    generatedMetadata.robotsTxtExists = generatedMetadata.robotsTxtExists ?? existingMetadata?.robotsTxtExists ?? false
+    const aiResponse: { 
+      metadata: MetadataResult
+      aiAnalysis: GeneratedMetadata['aiAnalysis']
+    } = JSON.parse(jsonString)
 
-    // Carry over fields AI can't generate (images, URLs from existing)
+    const generatedMetadata: GeneratedMetadata = {
+      ...aiResponse.metadata,
+      aiAnalysis: aiResponse.aiAnalysis
+    }
+
+    // Preserve existing technical fields that AI cannot generate
     if (existingMetadata) {
-      generatedMetadata.ogImage = generatedMetadata.ogImage ?? existingMetadata.ogImage
+      // Keep actual URLs and technical data
+      generatedMetadata.ogImage = existingMetadata.ogImage
       generatedMetadata.ogImageWidth = existingMetadata.ogImageWidth
       generatedMetadata.ogImageHeight = existingMetadata.ogImageHeight
-      generatedMetadata.twitterImage = generatedMetadata.twitterImage ?? existingMetadata.twitterImage
+      generatedMetadata.twitterImage = existingMetadata.twitterImage
       generatedMetadata.favicon = existingMetadata.favicon
       generatedMetadata.appleTouchIcon = existingMetadata.appleTouchIcon
+      generatedMetadata.manifest = existingMetadata.manifest
       generatedMetadata.canonicalUrl = existingMetadata.canonicalUrl
-      generatedMetadata.ogUrl = existingMetadata.ogUrl ?? existingMetadata.canonicalUrl
+      generatedMetadata.ogUrl = existingMetadata.ogUrl || existingMetadata.canonicalUrl
       generatedMetadata.sitemapUrl = existingMetadata.sitemapUrl
       generatedMetadata.sitemapExists = existingMetadata.sitemapExists
       generatedMetadata.robotsTxtExists = existingMetadata.robotsTxtExists
       generatedMetadata.robotsTxtContent = existingMetadata.robotsTxtContent
+      generatedMetadata.alternateUrls = existingMetadata.alternateUrls
+      generatedMetadata.prevPage = existingMetadata.prevPage
+      generatedMetadata.nextPage = existingMetadata.nextPage
+
+      // Update Discord/Slack with generated OG values if no image exists
       generatedMetadata.discordTitle = generatedMetadata.ogTitle
       generatedMetadata.discordDescription = generatedMetadata.ogDescription
-      generatedMetadata.discordImage = generatedMetadata.ogImage
+      generatedMetadata.discordImage = existingMetadata.ogImage
+      generatedMetadata.discordType = generatedMetadata.ogType
       generatedMetadata.slackTitle = generatedMetadata.ogTitle
       generatedMetadata.slackDescription = generatedMetadata.ogDescription
-      generatedMetadata.slackImage = generatedMetadata.ogImage
+      generatedMetadata.slackImage = existingMetadata.ogImage
+      generatedMetadata.slackType = generatedMetadata.ogType
+
+      // Add image recommendations if missing
+      if (!existingMetadata.ogImage && generatedMetadata.aiAnalysis) {
+        const hasImageRecommendation = generatedMetadata.aiAnalysis.missingFields
+          .some(f => f.field === 'ogImage')
+        
+        if (!hasImageRecommendation) {
+          generatedMetadata.aiAnalysis.missingFields.push({
+            field: 'ogImage',
+            importance: 'critical',
+            reason: 'Social media platforms require images for rich previews. Without an OG image, your links will appear as plain text, significantly reducing click-through rates.',
+            recommendation: 'Create a 1200x630px image (aspect ratio 1.91:1) featuring your logo, primary message, and brand colors. Optimal file size: under 8MB. Formats: JPG or PNG. Tools: Canva, Figma, or Adobe Express. Ensure text is readable when scaled down to thumbnail size.'
+          })
+        }
+      }
+
+      if (!existingMetadata.twitterImage && generatedMetadata.aiAnalysis) {
+        const hasTwitterImageRec = generatedMetadata.aiAnalysis.missingFields
+          .some(f => f.field === 'twitterImage')
+        
+        if (!hasTwitterImageRec) {
+          generatedMetadata.aiAnalysis.missingFields.push({
+            field: 'twitterImage',
+            importance: 'high',
+            reason: 'Twitter uses its own image tag for card previews. Falls back to OG image, but dedicated Twitter images can be optimized for the platform.',
+            recommendation: 'Use the same 1200x630px image as OG image, or create a Twitter-specific version optimized for the platform\'s audience. Consider adding Twitter handle or hashtag to the image.'
+          })
+        }
+      }
+
+      if (!existingMetadata.favicon && generatedMetadata.aiAnalysis) {
+        generatedMetadata.aiAnalysis.missingFields.push({
+          field: 'favicon',
+          importance: 'medium',
+          reason: 'Favicon appears in browser tabs, bookmarks, and mobile home screens. Missing favicon makes your site look unprofessional.',
+          recommendation: 'Create a 32x32px (minimum) or 512x512px (recommended) square icon in ICO, PNG, or SVG format. Use your logo or brand mark. Ensure it\'s recognizable at small sizes. Generate multiple sizes (16x16, 32x32, 192x192, 512x512) for best cross-platform support.'
+        })
+      }
     }
+
+    // Ensure boolean fields have defaults
+    generatedMetadata.sitemapExists = generatedMetadata.sitemapExists ?? false
+    generatedMetadata.robotsTxtExists = generatedMetadata.robotsTxtExists ?? false
 
     return NextResponse.json(generatedMetadata)
   } catch (error) {
     console.error('Error generating metadata:', error)
+    
+    // Provide more specific error messages
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Failed to parse AI response. The AI may have returned invalid JSON.' },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to generate metadata' },
+      { error: 'Failed to generate metadata. Please try again.' },
       { status: 500 }
     )
   }
