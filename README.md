@@ -40,6 +40,17 @@ Powered by Google Gemini, generate optimized metadata for any page:
 - AI suggests better titles, descriptions, Open Graph tags, and Twitter Cards
 - Results displayed in the same dashboard format for easy comparison
 
+### SEO Specialist Mode
+
+Toggle "Guide me like an SEO specialist" for a step-by-step guided experience:
+
+- **Step 1: Title Optimization** — Craft compelling, keyword-rich titles with character count feedback
+- **Step 2: Meta Description** — Write persuasive descriptions with optimal length guidance
+- **Step 3: Open Graph & Social** — Optimize social media previews with platform-specific tips
+- **Step 4: Content & Improvements** — Review SEO score, AI recommendations, and technical metadata
+- Navigate between steps with Previous/Next or click completed steps in the progress bar
+- Switch to full dashboard view at any time
+
 ## Architecture
 
 MetaChecker uses [Feature-Sliced Design](https://feature-sliced.design/). See [ARCHITECTURE.md](./ARCHITECTURE.md) for details.

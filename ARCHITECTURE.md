@@ -49,10 +49,12 @@ shared/
 │   ├── formatUrl.ts          # URL display formatting
 │   ├── errors.ts             # AppError hierarchy + toErrorResponse()
 │   ├── logger.ts             # Structured JSON logger
+│   ├── hooks/
+│   │   └── use-wizard-navigation.ts  # Generic multi-step wizard navigation hook
 │   ├── types/
 │   │   └── metadata-item.ts  # Shared type definitions
 │   └── metadata/
-│       ├── types.ts          # MetadataResult interface (80+ fields)
+│       ├── types.ts          # MetadataResult, GeneratedMetadata, AiAnalysis interfaces
 │       └── fetch-metadata.ts # Server-side HTML parser (Cheerio)
 └── ui/
     ├── button.tsx            # Button with CVA variants
@@ -62,6 +64,7 @@ shared/
     ├── tabs.tsx              # Radix Tabs (default + line variants)
     ├── separator.tsx         # Radix Separator
     ├── skeleton.tsx          # Loading placeholder
+    ├── switch.tsx            # Toggle switch (Radix Switch)
     ├── sonner.tsx            # Toast notifications
     ├── back-button.tsx       # Back navigation link button
     ├── copy-button.tsx       # Copy-to-clipboard button
@@ -83,15 +86,22 @@ entities/
 │   └── model/
 │       └── constants.ts           # features, steps, metadataChecks, benefits
 │
-└── metadata/
-    ├── api/
-    │   └── metadata-api.ts        # checkMetadata(url) — client API call
+├── metadata/
+│   ├── api/
+│   │   └── metadata-api.ts        # checkMetadata(url) — client API call
+│   └── ui/
+│       ├── metadata-field.tsx     # Single metadata field display
+│       ├── metadata-grid.tsx      # 2-column responsive grid layout
+│       ├── metadata-section.tsx   # Card wrapper with copy-all
+│       ├── social-preview-card.tsx # Platform preview card
+│       └── status-badge.tsx       # Exists/missing indicator
+│
+└── seo-wizard/
+    ├── model/
+    │   ├── types.ts               # StepConfig interface
+    │   └── constants.ts           # WIZARD_STEPS, getStepForField() mapping
     └── ui/
-        ├── metadata-field.tsx     # Single metadata field display
-        ├── metadata-grid.tsx      # 2-column responsive grid layout
-        ├── metadata-section.tsx   # Card wrapper with copy-all
-        ├── social-preview-card.tsx # Platform preview card
-        └── status-badge.tsx       # Exists/missing indicator
+        └── ai-recommendation-card.tsx  # AI recommendation display with importance badge
 ```
 
 ### features/
@@ -130,6 +140,12 @@ widgets/
 │   └── ui/
 │       └── metadata-dashboard.tsx   # 4-tab dashboard (Overview, Social, Technical, Sitemap)
 │
+├── seo-wizard/
+│   └── ui/
+│       ├── seo-wizard.tsx           # Step-by-step SEO specialist guide
+│       ├── wizard-progress.tsx      # Horizontal step progress indicator
+│       └── wizard-step-content.tsx  # Step-specific content renderer (Title, Description, Social, Content)
+│
 ├── footer/
 │   └── ui/
 │       └── Footer.tsx              # App Footer
@@ -155,7 +171,7 @@ pages/
 │
 └── generate-page/
     └── ui/
-        └── GeneratePage.tsx   # AI: form → mutation → dashboard
+        └── GeneratePage.tsx   # AI: form → mutation → dashboard/wizard (specialist mode toggle)
 ```
 
 ## Data Flow
@@ -205,7 +221,7 @@ sequenceDiagram
     Gemini-->>API: JSON with metadata + aiAnalysis
     API-->>ReactQuery: GeneratedMetadata
     ReactQuery-->>GeneratePage: data
-    GeneratePage->>Browser: Render MetadataDashboard
+    GeneratePage->>Browser: Render MetadataDashboard or SeoWizard (specialist mode)
 ```
 
 ## Error Handling
@@ -251,3 +267,5 @@ Structured logging via `src/shared/lib/logger.ts` outputs JSON with timestamp, l
 | Gemini on server route only | API key stays server-side, never exposed to the client |
 | Typed error hierarchy | Consistent API responses, machine-readable codes for client-side handling |
 | Structured JSON logging | Production-ready log format for aggregation and monitoring |
+| SEO Wizard as separate widget | Same AI data, different UX — wizard reuses entity components but displays step-by-step |
+| `GeneratedMetadata` type in shared | Extends `MetadataResult` with `aiAnalysis`, used by both API route and client |
